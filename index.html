@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cannon Projectile Motion Lab — Virtual Physics Lab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    input[type="range"] {
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-white text-slate-900">
+
+  <!-- HEADER -->
+  <header class="sticky top-0 z-30 flex min-h-[60px] flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2">
+    <div class="flex items-center gap-3">
+      <button
+        onclick="window.history.back()"
+        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50"
+      >
+        ← All Labs
+      </button>
+      <div class="flex h-11 w-12 items-center justify-center rounded-xl bg-amber-50 text-2xl">
+        💣
+      </div>
+      <div>
+        <h1 class="text-xl font-bold">Cannon Projectile Motion Lab</h1>
+        <p class="text-sm text-slate-500">
+          Motion in Two Dimensions — Artillery Trajectory Simulator
+        </p>
+      </div>
+    </div>
+
+    <button
+      onclick="handleReset()"
+      class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50"
+    >
+      ↺ Reset
+    </button>
+  </header>
+
+  <!-- MAIN TRAJECTORY SECTION -->
+  <section class="border-b border-slate-200 bg-white">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
+      <div>
+        <h2 class="font-bold text-blue-700">Cannonball Trajectory (True Physical Scale)</h2>
+        <p class="text-xs text-slate-500">
+          Ideal projectile motion without air resistance — lower speed lands near, higher speed &amp; optimal angle land far
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-4 text-xs font-semibold">
+        <span class="flex items-center gap-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-blue-600"></span>
+          Trajectory
+        </span>
+        <span class="flex items-center gap-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-orange-500"></span>
+          Velocity
+        </span>
+        <span class="flex items-center gap-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-green-600"></span>
+          Components
+        </span>
+        <label class="flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700">
+          <input id="chkAutoFit" type="checkbox" class="h-3.5 w-3.5 rounded" />
+          <span>Auto-Zoom to Shot</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="relative overflow-x-auto px-2 py-2">
+      <svg
+        id="mainSvg"
+        viewBox="0 0 1100 390"
+        class="mx-auto block w-full min-w-[650px] rounded-xl border border-sky-200 shadow-inner"
+        role="img"
+        aria-label="Animated cannon projectile trajectory diagram"
+      ></svg>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="mx-3 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div class="flex items-center gap-2">
+        <button
+          id="btnPlayPause"
+          onclick="handlePlayPause()"
+          class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700"
+        >
+          🔥 Fire Cannon
+        </button>
+
+        <button
+          id="btnStep"
+          onclick="handleStep()"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40"
+        >
+          Step +
+        </button>
+
+        <button
+          onclick="resetViewOnly()"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-slate-100"
+        >
+          Reset View
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <label class="text-xs font-semibold text-slate-600">Speed</label>
+        <select
+          id="selectSpeed"
+          onchange="state.speedMultiplier = Number(this.value)"
+          class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+        >
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option>
+          <option value="2">2x</option>
+          <option value="4">4x</option>
+        </select>
+      </div>
+
+      <div class="min-w-[180px] flex-1">
+        <div class="mb-1 flex justify-between text-xs text-slate-500">
+          <span>Time progress</span>
+          <span id="txtElapsedTime">0 s</span>
+        </div>
+        <div class="h-2 overflow-hidden rounded-full bg-slate-200">
+          <div
+            id="progressBar"
+            class="h-full rounded-full bg-blue-600 transition-all"
+            style="width: 0%"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOWER DASHBOARD -->
+  <main class="grid grid-cols-1 gap-4 bg-slate-50 p-3 lg:grid-cols-3">
+    <!-- PARAMETERS -->
+    <section class="rounded-xl border border-slate-200 bg-white p-4">
+      <h2 class="mb-4 border-b border-slate-100 pb-3 text-lg font-bold">
+        🎚 Cannon Parameters
+      </h2>
+
+      <!-- Muzzle Velocity -->
+      <div class="mb-5">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <label class="text-sm font-semibold">Muzzle Velocity (u)</label>
+          <span id="badgeVelocity" class="rounded-md px-2 py-1 text-xs font-bold" style="color: #2563eb; background-color: #2563eb15;">
+            25 m/s
+          </span>
+        </div>
+        <input id="sliderVelocity" type="range" min="1" max="50" step="1" value="25" class="w-full" style="accent-color: #2563eb;" />
+        <div class="mt-1 flex justify-between text-xs text-slate-400">
+          <span>1 m/s (Near)</span>
+          <span>50 m/s (Far)</span>
+        </div>
+      </div>
+
+      <!-- Cannon Angle -->
+      <div class="mb-5">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <label class="text-sm font-semibold">Cannon Angle (θ)</label>
+          <span id="badgeAngle" class="rounded-md px-2 py-1 text-xs font-bold" style="color: #ea580c; background-color: #ea580c15;">
+            45 °
+          </span>
+        </div>
+        <input id="sliderAngle" type="range" min="0" max="90" step="1" value="45" class="w-full" style="accent-color: #ea580c;" />
+        <div class="mt-1 flex justify-between text-xs text-slate-400">
+          <span>0 °</span>
+          <span>45° (Max Range)</span>
+          <span>90 °</span>
+        </div>
+      </div>
+
+      <!-- Gravity -->
+      <div class="mb-5">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <label class="text-sm font-semibold">Gravity (g)</label>
+          <span id="badgeGravity" class="rounded-md px-2 py-1 text-xs font-bold" style="color: #059669; background-color: #05966915;">
+            9.8 m/s²
+          </span>
+        </div>
+        <input id="sliderGravity" type="range" min="1" max="20" step="0.1" value="9.8" class="w-full" style="accent-color: #059669;" />
+        <div class="mt-1 flex justify-between text-xs text-slate-400">
+          <span>1 m/s² (Low g)</span>
+          <span>20 m/s² (High g)</span>
+        </div>
+      </div>
+
+      <!-- Cliff Height -->
+      <div class="mb-5">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <label class="text-sm font-semibold">Cliff Height (h₀)</label>
+          <span id="badgeHeight" class="rounded-md px-2 py-1 text-xs font-bold" style="color: #9333ea; background-color: #9333ea15;">
+            0 m
+          </span>
+        </div>
+        <input id="sliderHeight" type="range" min="0" max="30" step="1" value="0" class="w-full" style="accent-color: #9333ea;" />
+        <div class="mt-1 flex justify-between text-xs text-slate-400">
+          <span>0 m</span>
+          <span>30 m</span>
+        </div>
+      </div>
+
+      <!-- Display Options -->
+      <div class="mt-5 border-t border-slate-100 pt-4">
+        <h3 class="mb-3 text-sm font-bold">👁 Display Options</h3>
+        <div class="space-y-3 text-sm">
+          <label class="flex cursor-pointer items-center gap-2">
+            <input id="chkVelocity" type="checkbox" checked class="h-4 w-4 rounded" style="accent-color: #ea580c;" />
+            <span>Show velocity vector</span>
+          </label>
+          <label class="flex cursor-pointer items-center gap-2">
+            <input id="chkComponents" type="checkbox" checked class="h-4 w-4 rounded" style="accent-color: #059669;" />
+            <span>Show velocity components</span>
+          </label>
+          <label class="flex cursor-pointer items-center gap-2">
+            <input id="chkTrail" type="checkbox" checked class="h-4 w-4 rounded" style="accent-color: #2563eb;" />
+            <span>Show trajectory path</span>
+          </label>
+          <label class="flex cursor-pointer items-center gap-2">
+            <input id="chkGrid" type="checkbox" checked class="h-4 w-4 rounded" style="accent-color: #64748b;" />
+            <span>Show coordinate grid</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="rounded-xl border border-slate-200 bg-white p-4">
+      <h2 class="mb-4 border-b border-slate-100 pb-3 text-lg font-bold">
+        ✨ Motion Characteristics
+      </h2>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[10px] font-bold tracking-wide text-slate-500">HORIZONTAL RANGE</p>
+          <p id="cardRange" class="mt-2 text-2xl font-bold" style="color: #2563eb;">63.78</p>
+          <p class="text-xs font-semibold text-slate-600">meters</p>
+          <p class="mt-2 text-[10px] text-slate-500">Total horizontal distance</p>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[10px] font-bold tracking-wide text-slate-500">MAXIMUM HEIGHT</p>
+          <p id="cardMaxHeight" class="mt-2 text-2xl font-bold" style="color: #059669;">15.94</p>
+          <p class="text-xs font-semibold text-slate-600">meters</p>
+          <p class="mt-2 text-[10px] text-slate-500">Highest point reached</p>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[10px] font-bold tracking-wide text-slate-500">TIME OF FLIGHT</p>
+          <p id="cardTimeFlight" class="mt-2 text-2xl font-bold" style="color: #ea580c;">3.61</p>
+          <p class="text-xs font-semibold text-slate-600">seconds</p>
+          <p class="mt-2 text-[10px] text-slate-500">Total time in air</p>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-[10px] font-bold tracking-wide text-slate-500">INITIAL SPEED</p>
+          <p id="cardInitSpeed" class="mt-2 text-2xl font-bold" style="color: #9333ea;">25</p>
+          <p class="text-xs font-semibold text-slate-600">m/s</p>
+          <p class="mt-2 text-[10px] text-slate-500">Launch velocity magnitude</p>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-xl border border-slate-200 p-3">
+        <h3 class="mb-3 font-bold">Velocity Components</h3>
+        <div class="space-y-3">
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-600">Horizontal velocity (uₓ)</span>
+            <strong id="txtUx" class="text-green-700">17.68 m/s</strong>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-600">Vertical velocity (uᵧ)</span>
+            <strong id="txtUy" class="text-blue-700">17.68 m/s</strong>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-600">Current speed</span>
+            <strong id="txtCurrSpeed" class="text-orange-700">25 m/s</strong>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-600">Current height</span>
+            <strong id="txtCurrY">0 m</strong>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-600">Current horizontal distance</span>
+            <strong id="txtCurrX">0 m</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FORMULA DERIVATION -->
+    <section class="rounded-xl border border-slate-200 bg-white p-4">
+      <div class="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+        <h2 class="text-lg font-bold">🧮 Live Physics Derivation</h2>
+        <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+          Projectile Equations
+        </span>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <div>
+          <h3 class="mb-2 font-bold">1. Given Values</h3>
+          <div id="givenTags" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div>
+          <h3 class="mb-2 font-bold">2. Initial Velocity Components</h3>
+          <div class="rounded-lg bg-slate-50 p-3 font-mono text-xs leading-6">
+            <p>uₓ = u cos θ</p>
+            <p id="derivUxLine">= 25 × cos(45°)</p>
+            <p id="derivUxRes" class="font-bold text-green-700">= 17.68 m/s</p>
+            <div class="my-2 border-t border-slate-200"></div>
+            <p>uᵧ = u sin θ</p>
+            <p id="derivUyLine">= 25 × sin(45°)</p>
+            <p id="derivUyRes" class="font-bold text-blue-700">= 17.68 m/s</p>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="mb-2 font-bold">3. Time of Flight</h3>
+          <div class="rounded-lg bg-slate-50 p-3 font-mono text-xs leading-6">
+            <p>T = (uᵧ + √(uᵧ² + 2gh₀)) / g</p>
+            <p id="derivTimeRes" class="font-bold text-orange-700">T = 3.61 seconds</p>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="mb-2 font-bold">4. Maximum Height</h3>
+          <div class="rounded-lg bg-slate-50 p-3 font-mono text-xs leading-6">
+            <p>H = h₀ + uᵧ² / 2g</p>
+            <p id="derivHeightRes" class="font-bold text-green-700">H = 15.94 m</p>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="mb-2 font-bold">5. Horizontal Range</h3>
+          <div class="rounded-lg bg-slate-50 p-3 font-mono text-xs leading-6">
+            <p>R = uₓ × T</p>
+            <p id="derivRangeRes" class="font-bold text-blue-700">R = 63.78 m</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- VELOCITY GRAPHS -->
+  <section class="grid grid-cols-1 gap-4 bg-slate-50 px-3 pb-5 lg:grid-cols-2">
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+      <h2 class="mb-3 font-bold">📈 Horizontal Velocity vs Time</h2>
+      <svg id="vxGraphSvg" viewBox="0 0 500 170" class="w-full"></svg>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+      <h2 class="mb-3 font-bold">📉 Vertical Velocity vs Time</h2>
+      <svg id="vyGraphSvg" viewBox="0 0 500 170" class="w-full"></svg>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-slate-200 bg-white px-4 py-4 text-center text-xs text-slate-500">
+    Cannon Projectile Motion Virtual Lab | Ideal motion model | Air resistance neglected
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT PHYSICS ENGINE & SVG RENDERER                              -->
+  <!-- ===================================================================== -->
+  <script>
+    const DEG_TO_RAD = Math.PI / 180;
+
+    // Fixed true-scale physical world bounds so changing u, θ, or g visibly
+    // moves the landing point near (low speed) or far away (high speed).
+    const FIXED_WORLD_MAX_X = 280; // meters (max possible range with u=50, g=1 is ~2500m, standard 9.8m/s² max ~255m)
+    const FIXED_WORLD_MAX_Y = 150; // meters
+
+    const COLORS = {
+      blue: "#2563eb",
+      cyan: "#0891b2",
+      green: "#059669",
+      orange: "#ea580c",
+      purple: "#9333ea",
+      dark: "#172554",
+      muted: "#64748b",
+      border: "#e2e8f0",
+    };
+
+    const state = {
+      initialVelocity: 25,
+      angle: 45,
+      gravity: 9.8,
+      initialHeight: 0,
+      showVelocity: true,
+      showComponents: true,
+      showGrid: true,
+      showTrail: true,
+      autoFit: false,
+      isPlaying: false,
+      elapsedTime: 0,
+      speedMultiplier: 1,
+    };
+
+    function formatNumber(value, decimals = 2) {
+      return Number(value.toFixed(decimals));
+    }
+
+    function calculateVelocityComponents(initialVelocity, angle) {
+      const theta = angle * DEG_TO_RAD;
+      return {
+        horizontal: initialVelocity * Math.cos(theta),
+        vertical: initialVelocity * Math.sin(theta),
+      };
+    }
+
+    function calculateProjectile(params) {
+      const { initialVelocity, angle, gravity, initialHeight } = params;
+      const theta = angle * DEG_TO_RAD;
+      const vx = initialVelocity * Math.cos(theta);
+      const vy = initialVelocity * Math.sin(theta);
+
+      const timeOfFlight =
+        (vy + Math.sqrt(Math.max(0, vy * vy + 2 * gravity * initialHeight))) / gravity;
+      const horizontalRange = vx * timeOfFlight;
+      const maximumHeight = initialHeight + (vy * vy) / (2 * gravity);
+      const finalVelocityY = vy - gravity * timeOfFlight;
+
+      return {
+        timeOfFlight,
+        maximumHeight,
+        horizontalRange,
+        initialVelocityX: vx,
+        initialVelocityY: vy,
+        finalVelocityX: vx,
+        finalVelocityY,
+      };
+    }
+
+    function getProjectilePosition(params, time) {
+      const { initialVelocity, angle, gravity, initialHeight } = params;
+      const results = calculateProjectile(params);
+      const t = Math.max(0, Math.min(time, results.timeOfFlight));
+      const theta = angle * DEG_TO_RAD;
+      const vx = initialVelocity * Math.cos(theta);
+      const vy = initialVelocity * Math.sin(theta);
+
+      const x = vx * t;
+      const rawY = initialHeight + vy * t - 0.5 * gravity * t * t;
+      const y = t >= results.timeOfFlight - 1e-6 ? 0 : Math.max(0, rawY);
+      const velocityY = vy - gravity * t;
+      const speed = Math.sqrt(vx * vx + velocityY * velocityY);
+
+      return {
+        time: t,
+        x,
+        y,
+        vx,
+        vy: velocityY,
+        speed,
+      };
+    }
+
+    function generateTrajectory(params, numberOfPoints = 120) {
+      const results = calculateProjectile(params);
+      const points = [];
+      for (let i = 0; i <= numberOfPoints; i++) {
+        const time = (results.timeOfFlight * i) / numberOfPoints;
+        points.push(getProjectilePosition(params, time));
+      }
+      return points;
+    }
+
+    function bindControls() {
+      document.getElementById("sliderVelocity").addEventListener("input", (e) => {
+        state.initialVelocity = Number(e.target.value);
+        resetAnimation();
+        renderAll();
+      });
+      document.getElementById("sliderAngle").addEventListener("input", (e) => {
+        state.angle = Number(e.target.value);
+        resetAnimation();
+        renderAll();
+      });
+      document.getElementById("sliderGravity").addEventListener("input", (e) => {
+        state.gravity = Number(e.target.value);
+        resetAnimation();
+        renderAll();
+      });
+      document.getElementById("sliderHeight").addEventListener("input", (e) => {
+        state.initialHeight = Number(e.target.value);
+        resetAnimation();
+        renderAll();
+      });
+
+      document.getElementById("chkVelocity").addEventListener("change", (e) => {
+        state.showVelocity = e.target.checked;
+        renderAll();
+      });
+      document.getElementById("chkComponents").addEventListener("change", (e) => {
+        state.showComponents = e.target.checked;
+        renderAll();
+      });
+      document.getElementById("chkTrail").addEventListener("change", (e) => {
+        state.showTrail = e.target.checked;
+        renderAll();
+      });
+      document.getElementById("chkGrid").addEventListener("change", (e) => {
+        state.showGrid = e.target.checked;
+        renderAll();
+      });
+      document.getElementById("chkAutoFit").addEventListener("change", (e) => {
+        state.autoFit = e.target.checked;
+        renderAll();
+      });
+    }
+
+    function resetAnimation() {
+      state.isPlaying = false;
+      state.elapsedTime = 0;
+    }
+
+    function resetViewOnly() {
+      state.isPlaying = false;
+      state.elapsedTime = 0;
+      renderAll();
+    }
+
+    function handleReset() {
+      state.initialVelocity = 25;
+      state.angle = 45;
+      state.gravity = 9.8;
+      state.initialHeight = 0;
+      state.showVelocity = true;
+      state.showComponents = true;
+      state.showTrail = true;
+      state.showGrid = true;
+      state.autoFit = false;
+      state.isPlaying = false;
+      state.elapsedTime = 0;
+      state.speedMultiplier = 1;
+
+      document.getElementById("sliderVelocity").value = 25;
+      document.getElementById("sliderAngle").value = 45;
+      document.getElementById("sliderGravity").value = 9.8;
+      document.getElementById("sliderHeight").value = 0;
+      document.getElementById("selectSpeed").value = "1";
+      document.getElementById("chkVelocity").checked = true;
+      document.getElementById("chkComponents").checked = true;
+      document.getElementById("chkTrail").checked = true;
+      document.getElementById("chkGrid").checked = true;
+      document.getElementById("chkAutoFit").checked = false;
+
+      renderAll();
+    }
+
+    function handlePlayPause() {
+      const results = calculateProjectile(state);
+      if (state.elapsedTime >= results.timeOfFlight) {
+        state.elapsedTime = 0;
+      }
+      state.isPlaying = !state.isPlaying;
+      renderAll();
+    }
+
+    function handleStep() {
+      const results = calculateProjectile(state);
+      state.isPlaying = false;
+      state.elapsedTime = Math.min(state.elapsedTime + 0.1, results.timeOfFlight);
+      renderAll();
+    }
+
+    function getGraphPath(points, width, height) {
+      if (points.length === 0) return "";
+      return points
+        .map(
+          (pt, idx) =>
+            `${idx === 0 ? "M" : "L"} ${pt.x * width} ${height - pt.y * height}`
+        )
+        .join(" ");
+    }
+
+    function renderVelocityGraphs(results, currentProgress) {
+      const graphHeight = 135;
+      const graphWidth = 500;
+      const maxVelocity = Math.max(
+        state.initialVelocity,
+        Math.abs(results.finalVelocityY),
+        1
+      );
+
+      const points = Array.from({ length: 60 }, (_, index) => {
+        const t = (index / 59) * results.timeOfFlight;
+        const pos = getProjectilePosition(state, t);
+        return { time: t, vx: pos.vx, vy: pos.vy };
+      });
+
+      const vxPath = getGraphPath(
+        points.map((pt) => ({
+          x: results.timeOfFlight > 0 ? pt.time / results.timeOfFlight : 0,
+          y: (pt.vx + maxVelocity) / (2 * maxVelocity),
+        })),
+        graphWidth,
+        graphHeight
+      );
+
+      const vyPath = getGraphPath(
+        points.map((pt) => ({
+          x: results.timeOfFlight > 0 ? pt.time / results.timeOfFlight : 0,
+          y: (pt.vy + maxVelocity) / (2 * maxVelocity),
+        })),
+        graphWidth,
+        graphHeight
+      );
+
+      const gridLines = `
+        ${Array.from({ length: 6 }, (_, i) => `<line x1="0" y1="${(graphHeight / 5) * i}" x2="${graphWidth}" y2="${(graphHeight / 5) * i}" stroke="#e2e8f0" stroke-dasharray="4 4" />`).join("")}
+        ${Array.from({ length: 6 }, (_, i) => `<line x1="${(graphWidth / 5) * i}" y1="0" x2="${(graphWidth / 5) * i}" y2="${graphHeight}" stroke="#e2e8f0" stroke-dasharray="4 4" />`).join("")}
+      `;
+
+      const cursorX = (currentProgress / 100) * graphWidth;
+
+      document.getElementById("vxGraphSvg").innerHTML = `
+        ${gridLines}
+        <line x1="0" y1="${graphHeight / 2}" x2="${graphWidth}" y2="${graphHeight / 2}" stroke="#64748b" />
+        <path d="${vxPath}" fill="none" stroke="${COLORS.green}" stroke-width="3" />
+        <line x1="${cursorX}" x2="${cursorX}" y1="0" y2="${graphHeight}" stroke="${COLORS.orange}" stroke-dasharray="4 4" />
+        <text x="5" y="12" font-size="10" fill="#64748b">Velocity (m/s)</text>
+        <text x="${graphWidth / 2}" y="${graphHeight + 25}" text-anchor="middle" font-size="11">Time (s)</text>
+      `;
+
+      document.getElementById("vyGraphSvg").innerHTML = `
+        ${gridLines}
+        <line x1="0" y1="${graphHeight / 2}" x2="${graphWidth}" y2="${graphHeight / 2}" stroke="#64748b" />
+        <path d="${vyPath}" fill="none" stroke="${COLORS.blue}" stroke-width="3" />
+        <line x1="${cursorX}" x2="${cursorX}" y1="0" y2="${graphHeight}" stroke="${COLORS.orange}" stroke-dasharray="4 4" />
+        <text x="5" y="12" font-size="10" fill="#64748b">Velocity (m/s)</text>
+        <text x="${graphWidth / 2}" y="${graphHeight + 25}" text-anchor="middle" font-size="11">Time (s)</text>
+      `;
+    }
+
+    function renderAll() {
+      const results = calculateProjectile(state);
+      const trajectory = generateTrajectory(state, 120);
+      const currentPosition = getProjectilePosition(state, state.elapsedTime);
+      const velocityComponents = calculateVelocityComponents(
+        state.initialVelocity,
+        state.angle
+      );
+
+      const btnPlay = document.getElementById("btnPlayPause");
+      btnPlay.textContent = state.isPlaying
+        ? "Ⅱ Pause"
+        : state.elapsedTime >= results.timeOfFlight
+        ? "↻ Fire Again"
+        : "🔥 Fire Cannon";
+
+      document.getElementById("btnStep").disabled =
+        state.elapsedTime >= results.timeOfFlight;
+      document.getElementById("txtElapsedTime").textContent = `${formatNumber(state.elapsedTime)} s`;
+
+      const currentProgress =
+        results.timeOfFlight > 0 ? (state.elapsedTime / results.timeOfFlight) * 100 : 0;
+      document.getElementById("progressBar").style.width = `${currentProgress}%`;
+
+      document.getElementById("badgeVelocity").textContent = `${state.initialVelocity} m/s`;
+      document.getElementById("badgeAngle").textContent = `${state.angle} °`;
+      document.getElementById("badgeGravity").textContent = `${state.gravity} m/s²`;
+      document.getElementById("badgeHeight").textContent = `${state.initialHeight} m`;
+
+      document.getElementById("cardRange").textContent = formatNumber(results.horizontalRange);
+      document.getElementById("cardMaxHeight").textContent = formatNumber(results.maximumHeight);
+      document.getElementById("cardTimeFlight").textContent = formatNumber(results.timeOfFlight);
+      document.getElementById("cardInitSpeed").textContent = formatNumber(state.initialVelocity);
+
+      document.getElementById("txtUx").textContent = `${formatNumber(velocityComponents.horizontal)} m/s`;
+      document.getElementById("txtUy").textContent = `${formatNumber(velocityComponents.vertical)} m/s`;
+      document.getElementById("txtCurrSpeed").textContent = `${formatNumber(currentPosition.speed)} m/s`;
+      document.getElementById("txtCurrY").textContent = `${formatNumber(currentPosition.y)} m`;
+      document.getElementById("txtCurrX").textContent = `${formatNumber(currentPosition.x)} m`;
+
+      document.getElementById("givenTags").innerHTML = `
+        <span class="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700">u = ${state.initialVelocity} m/s</span>
+        <span class="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700">θ = ${state.angle}°</span>
+        <span class="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700">g = ${state.gravity} m/s²</span>
+        <span class="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700">h₀ = ${state.initialHeight} m</span>
+      `;
+      document.getElementById("derivUxLine").textContent = `= ${state.initialVelocity} × cos(${state.angle}°)`;
+      document.getElementById("derivUxRes").textContent = `= ${formatNumber(velocityComponents.horizontal)} m/s`;
+      document.getElementById("derivUyLine").textContent = `= ${state.initialVelocity} × sin(${state.angle}°)`;
+      document.getElementById("derivUyRes").textContent = `= ${formatNumber(velocityComponents.vertical)} m/s`;
+      document.getElementById("derivTimeRes").textContent = `T = ${formatNumber(results.timeOfFlight)} seconds`;
+      document.getElementById("derivHeightRes").textContent = `H = ${formatNumber(results.maximumHeight)} m`;
+      document.getElementById("derivRangeRes").textContent = `R = ${formatNumber(results.horizontalRange)} m`;
+
+      const chartWidth = 1100;
+      const chartHeight = 390;
+
+      // True physical scale by default so low velocity falls near & high velocity falls far;
+      // optional autoFit zooms to the active trajectory.
+      const maxX = state.autoFit
+        ? Math.max(results.horizontalRange * 1.18, 10)
+        : Math.max(FIXED_WORLD_MAX_X, results.horizontalRange * 1.08);
+      const maxY = state.autoFit
+        ? Math.max(results.maximumHeight * 1.35, 10)
+        : Math.max(FIXED_WORLD_MAX_Y, results.maximumHeight * 1.15);
+
+      const toX = (x) => 65 + (x / maxX) * 970;
+      const toY = (y) => 325 - (y / maxY) * 265;
+
+      const trajectoryPath = trajectory
+        .map((pt, idx) => `${idx === 0 ? "M" : "L"} ${toX(pt.x)} ${toY(pt.y)}`)
+        .join(" ");
+
+      const completedPath = trajectory
+        .filter((pt) => pt.time <= state.elapsedTime)
+        .map((pt, idx) => `${idx === 0 ? "M" : "L"} ${toX(pt.x)} ${toY(pt.y)}`)
+        .join(" ");
+
+      const ballX = toX(currentPosition.x);
+      const ballY = toY(currentPosition.y);
+      const launchX = toX(0);
+      const launchY = toY(state.initialHeight);
+      const landingX = toX(results.horizontalRange);
+      const peakX = toX(results.horizontalRange / 2);
+      const peakY = toY(results.maximumHeight);
+
+      const vectorScale = 3.2;
+      const velocityEndX = ballX + currentPosition.vx * vectorScale;
+      const velocityEndY = ballY - currentPosition.vy * vectorScale;
+      const vxEndX = ballX + currentPosition.vx * vectorScale;
+      const vyEndY = ballY - currentPosition.vy * vectorScale;
+
+      const hasLanded =
+        state.elapsedTime > 0 && state.elapsedTime >= results.timeOfFlight - 0.001;
+
+      const treePositions = [260, 520, 770, 990];
+
+      document.getElementById("mainSvg").innerHTML = `
+        <defs>
+          <linearGradient id="skyGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#38bdf8" />
+            <stop offset="55%" stop-color="#bae6fd" />
+            <stop offset="100%" stop-color="#f0f9ff" />
+          </linearGradient>
+
+          <linearGradient id="grassGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#22c55e" />
+            <stop offset="40%" stop-color="#16a34a" />
+            <stop offset="100%" stop-color="#15803d" />
+          </linearGradient>
+
+          <linearGradient id="cannonMetal" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#475569" />
+            <stop offset="45%" stop-color="#1e293b" />
+            <stop offset="100%" stop-color="#0f172a" />
+          </linearGradient>
+
+          <marker id="projectileBlueArrow" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="${COLORS.blue}" />
+          </marker>
+          <marker id="projectileOrangeArrow" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="${COLORS.orange}" />
+          </marker>
+          <marker id="projectileGreenArrow" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="${COLORS.green}" />
+          </marker>
+        </defs>
+
+        <!-- BLUE SKY -->
+        <rect x="0" y="0" width="${chartWidth}" height="325" fill="url(#skyGradient)" />
+
+        <!-- SUN -->
+        <circle cx="1010" cy="52" r="26" fill="#fde047" opacity="0.9" />
+        <circle cx="1010" cy="52" r="36" fill="#fef08a" opacity="0.35" />
+
+        <!-- CLOUDS -->
+        <g fill="#ffffff" opacity="0.82">
+          <circle cx="210" cy="65" r="20" />
+          <circle cx="232" cy="58" r="25" />
+          <circle cx="256" cy="66" r="19" />
+          <rect x="210" y="65" width="46" height="20" rx="10" />
+
+          <circle cx="560" cy="52" r="18" />
+          <circle cx="580" cy="46" r="22" />
+          <circle cx="602" cy="53" r="17" />
+          <rect x="560" y="52" width="42" height="18" rx="9" />
+
+          <circle cx="820" cy="78" r="16" />
+          <circle cx="838" cy="72" r="20" />
+          <circle cx="856" cy="79" r="15" />
+          <rect x="820" y="78" width="36" height="16" rx="8" />
+        </g>
+
+        <!-- DISTANT HILLS -->
+        <path d="M 0 325 Q 180 265 380 325 T 760 325 T 1100 325 Z" fill="#86efac" opacity="0.55" />
+
+        <!-- GRID -->
+        ${state.showGrid ? `
+          <g>
+            ${Array.from({ length: 11 }, (_, i) => {
+              const x = 65 + i * 97;
+              return `<line x1="${x}" y1="35" x2="${x}" y2="325" stroke="#ffffff" stroke-opacity="0.55" stroke-dasharray="4 5" />`;
+            }).join("")}
+            ${Array.from({ length: 6 }, (_, i) => {
+              const y = 60 + i * 53;
+              return `<line x1="65" y1="${y}" x2="1035" y2="${y}" stroke="#ffffff" stroke-opacity="0.55" stroke-dasharray="4 5" />`;
+            }).join("")}
+          </g>
+        ` : ""}
+
+        <!-- GREEN GRASS LAYER -->
+        <rect x="0" y="325" width="${chartWidth}" height="${chartHeight - 325}" fill="url(#grassGradient)" />
+        <line x1="0" y1="325" x2="${chartWidth}" y2="325" stroke="#15803d" stroke-width="4" />
+
+        <!-- TREES -->
+        ${treePositions.map((tx) => `
+          <g transform="translate(${tx}, 325)">
+            <rect x="-4" y="-26" width="8" height="26" fill="#78350f" rx="2" />
+            <circle cx="0" cy="-34" r="16" fill="#15803d" />
+            <circle cx="-10" cy="-27" r="12" fill="#16a34a" />
+            <circle cx="10" cy="-27" r="12" fill="#16a34a" />
+            <circle cx="0" cy="-42" r="12" fill="#22c55e" />
+          </g>
+        `).join("")}
+
+        <!-- CLIFF PLATFORM IF h0 > 0 -->
+        ${state.initialHeight > 0 ? `
+          <g>
+            <rect x="${launchX - 30}" y="${launchY}" width="45" height="${325 - launchY}" fill="#64748b" stroke="#475569" stroke-width="2" rx="3" />
+            <rect x="${launchX - 32}" y="${launchY}" width="49" height="6" fill="#16a34a" rx="2" />
+          </g>
+        ` : ""}
+
+        <!-- AXES -->
+        <line x1="65" y1="325" x2="1055" y2="325" stroke="#14532d" stroke-width="2" />
+        <line x1="65" y1="35" x2="65" y2="335" stroke="#334155" stroke-width="2" />
+        <text x="1050" y="350" text-anchor="end" font-size="12" font-weight="bold" fill="#ffffff">Horizontal distance (m)</text>
+        <text x="14" y="45" font-size="12" font-weight="bold" fill="#0f172a">Height (m)</text>
+
+        <!-- X TICK LABELS -->
+        ${Array.from({ length: 6 }, (_, i) => {
+          const val = (maxX / 5) * i;
+          return `<text x="${toX(val)}" y="343" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">${formatNumber(val, 0)}m</text>`;
+        }).join("")}
+
+        <!-- FULL TRAJECTORY -->
+        ${state.showTrail && results.horizontalRange > 0.01 ? `
+          <path d="${trajectoryPath}" fill="none" stroke="${COLORS.blue}" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 5" opacity="0.8" />
+        ` : ""}
+
+        <!-- COMPLETED TRAJECTORY -->
+        ${state.showTrail && state.elapsedTime > 0 ? `
+          <path d="${completedPath}" fill="none" stroke="${COLORS.blue}" stroke-width="4" stroke-linecap="round" />
+        ` : ""}
+
+        <!-- MAXIMUM HEIGHT MARKER -->
+        ${results.maximumHeight > 0.1 ? `
+          <line x1="${peakX}" y1="${peakY}" x2="${peakX}" y2="325" stroke="#15803d" stroke-dasharray="5 5" stroke-width="1.5" />
+          <circle cx="${peakX}" cy="${peakY}" r="4.5" fill="#15803d" />
+          <text x="${Math.min(peakX + 8, 960)}" y="${Math.max(peakY - 8, 30)}" fill="#14532d" font-size="12" font-weight="bold">
+            H = ${formatNumber(results.maximumHeight)} m
+          </text>
+        ` : ""}
+
+        <!-- TRUE LANDING MARKER ON GROUND -->
+        <circle cx="${landingX}" cy="325" r="5.5" fill="#dc2626" stroke="#ffffff" stroke-width="1.5" />
+        <text x="${Math.min(Math.max(landingX, 95), 1020)}" y="314" font-size="11" text-anchor="middle" font-weight="bold" fill="#14532d">
+          Land: ${formatNumber(results.horizontalRange)} m
+        </text>
+
+        <!-- RANGE INDICATOR BAR -->
+        <line x1="${launchX}" y1="365" x2="${landingX}" y2="365" stroke="#fef08a" stroke-width="2.5" />
+        <text x="${Math.min(Math.max((launchX + landingX) / 2, 110), 990)}" y="382" text-anchor="middle" fill="#fef08a" font-size="12" font-weight="bold">
+          Range = ${formatNumber(results.horizontalRange)} m
+        </text>
+
+        <!-- LAUNCH ANGLE ARC -->
+        <path d="M ${launchX} ${launchY} L ${launchX + 46} ${launchY}" stroke="#475569" stroke-dasharray="3 3" fill="none" />
+        <path d="M ${launchX + 36} ${launchY} Q ${launchX + 33} ${launchY - 14} ${launchX + 28} ${launchY - Math.sin((state.angle * Math.PI) / 180) * 24}" stroke="${COLORS.orange}" fill="none" stroke-width="2.5" />
+        <text x="${launchX + 42}" y="${launchY - 12}" font-size="12" font-weight="bold" fill="#c2410c">
+          θ = ${state.angle}°
+        </text>
+
+        <!-- ARTILLERY CANNON -->
+        <g transform="translate(${launchX}, ${launchY})">
+          <g transform="rotate(${-state.angle})">
+            <path d="M -10 -9 L 34 -6 L 34 6 L -10 9 Z" fill="url(#cannonMetal)" stroke="#0f172a" stroke-width="1.5" />
+            <rect x="31" y="-7.5" width="5" height="15" rx="2" fill="#334155" />
+            <circle cx="-13" cy="0" r="5" fill="#1e293b" />
+          </g>
+          <path d="M -16 8 L 6 8 L 0 -3 L -12 2 Z" fill="#78350f" stroke="#451a03" stroke-width="1.5" />
+          <circle cx="-2" cy="6" r="10" fill="#92400e" stroke="#451a03" stroke-width="2.5" />
+          <circle cx="-2" cy="6" r="3" fill="#cbd5e1" />
+
+          ${state.elapsedTime > 0 && state.elapsedTime < 0.25 ? `
+            <g transform="rotate(${-state.angle}) translate(42, 0)">
+              <circle cx="0" cy="0" r="14" fill="#f97316" opacity="0.85" />
+              <circle cx="4" cy="0" r="9" fill="#fde047" />
+              <circle cx="14" cy="-6" r="6" fill="#f1f5f9" opacity="0.8" />
+              <circle cx="16" cy="5" r="7" fill="#e2e8f0" opacity="0.75" />
+            </g>
+          ` : ""}
+        </g>
+
+        <!-- BOMB / CANNONBALL OR IMPACT EXPLOSION -->
+        ${!hasLanded ? `
+          <g transform="translate(${ballX}, ${ballY})">
+            <path d="M 4 -8 Q 9 -14 13 -11" stroke="#d97706" stroke-width="2" fill="none" />
+            <circle cx="13" cy="-11" r="3.5" fill="#f97316" />
+            <circle cx="13" cy="-11" r="1.8" fill="#fef08a" />
+            <circle cx="0" cy="0" r="9" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+            <circle cx="-3" cy="-3" r="2.8" fill="#64748b" opacity="0.7" />
+          </g>
+        ` : `
+          <g transform="translate(${ballX}, ${ballY - 6})">
+            <polygon points="0,-26 7,-9 24,-15 13,0 26,11 8,9 11,24 0,12 -11,24 -8,9 -26,11 -13,0 -24,-15 -7,-9" fill="#ea580c" />
+            <polygon points="0,-16 5,-5 16,-9 8,0 16,7 5,5 7,15 0,7 -7,15 -5,5 -16,7 -8,0 -16,-9 -5,-5" fill="#facc15" />
+            <text x="0" y="-30" text-anchor="middle" font-size="12" font-weight="bold" fill="#b91c1c">💥 BOOM!</text>
+          </g>
+        `}
+
+        <!-- VELOCITY VECTOR -->
+        ${state.showVelocity && state.elapsedTime < results.timeOfFlight ? `
+          <line x1="${ballX}" y1="${ballY}" x2="${velocityEndX}" y2="${velocityEndY}" stroke="${COLORS.orange}" stroke-width="3" marker-end="url(#projectileOrangeArrow)" />
+        ` : ""}
+
+        <!-- COMPONENT VECTORS -->
+        ${state.showComponents && state.elapsedTime < results.timeOfFlight ? `
+          <g>
+            <line x1="${ballX}" y1="${ballY}" x2="${vxEndX}" y2="${ballY}" stroke="${COLORS.green}" stroke-width="2.5" marker-end="url(#projectileGreenArrow)" />
+            <line x1="${ballX}" y1="${ballY}" x2="${ballX}" y2="${vyEndY}" stroke="${COLORS.blue}" stroke-width="2.5" marker-end="url(#projectileBlueArrow)" />
+          </g>
+        ` : ""}
+      `;
+
+      renderVelocityGraphs(results, currentProgress);
+    }
+
+    let lastTimestamp = 0;
+    function animate(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const delta = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      if (state.isPlaying) {
+        const results = calculateProjectile(state);
+        state.elapsedTime += delta * state.speedMultiplier;
+        if (state.elapsedTime >= results.timeOfFlight) {
+          state.elapsedTime = results.timeOfFlight;
+          state.isPlaying = false;
+        }
+        renderAll();
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    bindControls();
+    renderAll();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
